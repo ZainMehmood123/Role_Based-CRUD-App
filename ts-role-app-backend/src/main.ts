@@ -2,6 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import * as dotenv from 'dotenv';
+import * as express from 'express';
+import { join } from 'path';
 
 async function bootstrap() {
   dotenv.config();
@@ -10,16 +12,17 @@ async function bootstrap() {
     cors: true,
   });
 
-  // Enable CORS for frontend communication
+  // ✅ Serve static files (images)
+  app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
+
+  // ✅ CORS for frontend
   app.enableCors({
-    origin: 'http://localhost:3000', // Your Next.js URL
+    origin: 'http://localhost:3000',
     credentials: true,
   });
 
-  // Set global prefix for all APIs (optional)
+  // ✅ Prefix and validation
   app.setGlobalPrefix('api');
-
-  // Apply validation globally
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -30,7 +33,6 @@ async function bootstrap() {
 
   const port = process.env.PORT || 5000;
   await app.listen(port);
-
   console.log(`🚀 Server running on http://localhost:${port}/api`);
 }
 bootstrap();
