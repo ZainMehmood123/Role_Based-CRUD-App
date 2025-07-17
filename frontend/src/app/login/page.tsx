@@ -25,7 +25,10 @@ export default function LoginPage() {
     try {
       const res = await axios.post(
         "http://localhost:5000/api/auth/login",
-        form
+        form,
+        {
+    withCredentials: true, 
+  }
       );
       Cookies.set("token", res.data.access_token);
       const role = res.data.user.role;

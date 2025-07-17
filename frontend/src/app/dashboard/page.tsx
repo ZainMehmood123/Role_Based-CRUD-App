@@ -9,7 +9,6 @@ import {
   createColumnHelper,
 } from "@tanstack/react-table";
 import axios from "axios";
-import Cookies from "js-cookie";
 import "./dashboard.css";
 
 interface Post {
@@ -31,9 +30,6 @@ export default function Dashboard() {
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [showTable, setShowTable] = useState(false);
 
-  const token = Cookies.get("token");
-  const headers = { Authorization: `Bearer ${token}` };
-
   useEffect(() => {
     fetchPosts();
   }, []);
@@ -41,7 +37,7 @@ export default function Dashboard() {
   const fetchPosts = async () => {
     try {
       const res = await axios.get("http://localhost:5000/api/posts/me", {
-        headers,
+        withCredentials: true, 
       });
       setPosts(res.data);
     } catch (err) {
@@ -64,8 +60,10 @@ export default function Dashboard() {
       if (editingPostId) {
         await axios.patch(
           `http://localhost:5000/api/posts/${editingPostId}`,
-          { title, content }, // No image support in update yet
-          { headers }
+          { title, content },
+          {
+            withCredentials: true,
+          }
         );
       } else {
         const formData = new FormData();
@@ -76,8 +74,8 @@ export default function Dashboard() {
         }
 
         await axios.post("http://localhost:5000/api/posts", formData, {
+          withCredentials: true,
           headers: {
-            ...headers,
             "Content-Type": "multipart/form-data",
           },
         });
@@ -108,7 +106,9 @@ export default function Dashboard() {
 
     setDeleteLoading(id);
     try {
-      await axios.delete(`http://localhost:5000/api/posts/${id}`, { headers });
+      await axios.delete(`http://localhost:5000/api/posts/${id}`, {
+        withCredentials: true,
+      });
       fetchPosts();
     } catch (err) {
       setError("Failed to delete post");
@@ -125,9 +125,17 @@ export default function Dashboard() {
     setError("");
   };
 
-  const handleLogout = () => {
-    Cookies.remove("token");
-    window.location.href = "/login";
+  const handleLogout = async () => {
+    try {
+      await axios.post(
+        "http://localhost:5000/api/auth/logout",
+        {},
+        { withCredentials: true }
+      );
+      window.location.href = "/login";
+    } catch (err) {
+      console.error("Logout failed");
+    }
   };
 
   const columnHelper = createColumnHelper<Post>();
@@ -141,33 +149,21 @@ export default function Dashboard() {
       header: "Content",
       cell: info => info.getValue(),
     }),
-
-
-columnHelper.accessor("image", {
-  header: "Image",
-  cell: info => {
-    let imagePath = info.getValue();
-    console.log("✅ Table Image path:", imagePath);
-
-    if (!imagePath) return "—";
-
-    // Remove accidental double slashes
-    imagePath = imagePath.replace("http://localhost:5000//", "http://localhost:5000/");
-
-    return (
-      <img
-        src={imagePath}
-        alt="Post"
-        style={{ width: "60px", height: "40px", objectFit: "cover" }}
-      />
-    );
-  },
-}),
-
-
-
-
-
+    columnHelper.accessor("image", {
+      header: "Image",
+      cell: info => {
+        let imagePath = info.getValue();
+        if (!imagePath) return "—";
+        imagePath = imagePath.replace("http://localhost:5000//", "http://localhost:5000/");
+        return (
+          <img
+            src={imagePath}
+            alt="Post"
+            style={{ width: "60px", height: "40px", objectFit: "cover" }}
+          />
+        );
+      },
+    }),
     columnHelper.accessor("createdAt", {
       header: "Created At",
       cell: info =>

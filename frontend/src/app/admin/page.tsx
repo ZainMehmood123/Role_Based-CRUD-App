@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
-import Cookies from "js-cookie";
 import "./admin.css";
 
 interface User {
@@ -30,9 +29,6 @@ export default function AdminPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [postsLoading, setPostsLoading] = useState(false);
 
-  const token = Cookies.get("token");
-  const headers = { Authorization: `Bearer ${token}` };
-
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -41,7 +37,7 @@ export default function AdminPage() {
     try {
       setLoading(true);
       const res = await axios.get("http://localhost:5000/api/users/admin/all", {
-        headers,
+        withCredentials: true, // ✅ send httpOnly cookie
       });
       setUsers(res.data);
     } catch {
@@ -60,7 +56,7 @@ export default function AdminPage() {
       await axios.patch(
         `http://localhost:5000/api/users/${id}/block`,
         {},
-        { headers }
+        { withCredentials: true }
       );
       fetchUsers();
     } catch {
@@ -80,7 +76,9 @@ export default function AdminPage() {
 
     setActionLoading(`delete-${id}`);
     try {
-      await axios.delete(`http://localhost:5000/api/users/${id}`, { headers });
+      await axios.delete(`http://localhost:5000/api/users/${id}`, {
+        withCredentials: true,
+      });
       fetchUsers();
     } catch {
       setError("Failed to delete user");
@@ -95,7 +93,7 @@ export default function AdminPage() {
     try {
       const res = await axios.get(
         `http://localhost:5000/api/posts/admin/user/${user.id}`,
-        { headers }
+        { withCredentials: true }
       );
       setSelectedUserPosts(res.data);
     } catch {
@@ -111,14 +109,23 @@ export default function AdminPage() {
     setError("");
   };
 
-  const handleLogout = () => {
-    Cookies.remove("token");
-    window.location.href = "/login";
+  const handleLogout = async () => {
+    try {
+      await axios.post(
+        "http://localhost:5000/api/auth/logout",
+        {},
+        { withCredentials: true }
+      );
+      window.location.href = "/login";
+    } catch {
+      setError("Logout failed");
+    }
   };
 
   const clearError = () => {
     setError("");
   };
+
 
   return (
     <div className="admin-container">

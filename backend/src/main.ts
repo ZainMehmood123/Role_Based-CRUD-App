@@ -3,14 +3,16 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import * as dotenv from 'dotenv';
 import * as express from 'express';
+import * as cookieParser from 'cookie-parser'; 
 import { join } from 'path';
 
 async function bootstrap() {
   dotenv.config();
 
-  const app = await NestFactory.create(AppModule, {
-    cors: true,
-  });
+  const app = await NestFactory.create(AppModule);
+
+  // ✅ Use cookie-parser (required for reading cookies)
+  app.use(cookieParser());
 
   // ✅ Serve static files (images)
   app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
@@ -18,7 +20,7 @@ async function bootstrap() {
   // ✅ CORS for frontend
   app.enableCors({
     origin: 'http://localhost:3000',
-    credentials: true,
+    credentials: true, // allow credentials (cookies)
   });
 
   // ✅ Prefix and validation
