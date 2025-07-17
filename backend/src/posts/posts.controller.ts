@@ -8,6 +8,8 @@
 //   Body,
 //   UseGuards,
 //   Req,
+//   UploadedFile,
+//   UseInterceptors,
 // } from '@nestjs/common';
 // import { PostsService } from './posts.service';
 // import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -18,19 +20,43 @@
 // import { UpdatePostDto } from './dto/update-post.dto';
 // import { User } from 'src/users/user.entity';
 
+// import { FileInterceptor } from '@nestjs/platform-express';
+// import { diskStorage } from 'multer';
+// import { extname } from 'path';
+
 // @Controller('posts')
 // @UseGuards(JwtAuthGuard, BlockGuard)
 // export class PostsController {
 //   constructor(private readonly postsService: PostsService) {}
 
-//   // ✅ Create new post (user only)
-//  @Post()
-// @UseGuards(JwtAuthGuard, BlockGuard, RolesGuard)
-// @Role('user')
-// create(@Body() dto: CreatePostDto, @Req() req) {
-//   const user = { id: req.user.userId } as User;
-//   return this.postsService.createPost(dto, user);
-// }
+//   // ✅ Create new post (with image support)
+//   @Post()
+//   @UseGuards(JwtAuthGuard, BlockGuard, RolesGuard)
+//   @Role('user')
+//   @UseInterceptors(
+//     FileInterceptor('image', {
+//       storage: diskStorage({
+//         destination: './uploads',
+//         filename: (req, file, cb) => {
+//           const uniqueName =
+//             file.fieldname + '-' + Date.now() + extname(file.originalname);
+//           cb(null, uniqueName);
+//         },
+//       }),
+//     }),
+//   )
+//   create(
+//     @Body() dto: CreatePostDto,
+//     @UploadedFile() file: Express.Multer.File,
+//     @Req() req,
+//   ) {
+//     const user = { id: req.user.userId } as User;
+
+//     // ✅ Only store the relative path
+//     const image = file ? `/uploads/${file.filename}` : null;
+
+//     return this.postsService.createPost({ ...dto, image: image || undefined }, user);
+//   }
 
 //   // ✅ Get my posts
 //   @Get('me')
@@ -46,45 +72,45 @@
 //     return this.postsService.getPostsByUserId(userId);
 //   }
 
-
-//   // Update Post
-// @Patch(':id')
-// @UseGuards(JwtAuthGuard, BlockGuard, RolesGuard)
-// @Role('user')
-// update(
-//   @Param('id') id: string,
-//   @Body() dto: UpdatePostDto,
-//   @Req() req,
-// ) {
-//   const user = {
-//     id: req.user.userId,
-//     role: req.user.role,
-//     isBlocked: req.user.isBlocked,
-//   } as User;
-
-//   return this.postsService.updatePost(id, dto, user);
-// }
-
-
-//   // ✅ Delete post (only own post or admin)
+//   // ✅ Update Post
+//   @Patch(':id')
 //   @UseGuards(JwtAuthGuard, BlockGuard, RolesGuard)
-// @Role('user') // or omit this if both user/admin can delete
-// @Delete(':id')
-// delete(@Param('id') id: string, @Req() req) {
-//   const user = {
-//     id: req.user.userId, // or req.user.id if you fixed the JWT strategy
-//     role: req.user.role,
-//     isBlocked: req.user.isBlocked,
-//   } as User;
+//   @Role('user')
+//   update(
+//     @Param('id') id: string,
+//     @Body() dto: UpdatePostDto,
+//     @Req() req,
+//   ) {
+//     const user = {
+//       id: req.user.userId,
+//       role: req.user.role,
+//       isBlocked: req.user.isBlocked,
+//     } as User;
 
-//   return this.postsService.deletePost(id, user);
+//     return this.postsService.updatePost(id, dto, user);
+//   }
+
+//   // ✅ Delete post
+//   @Delete(':id')
+//   @UseGuards(JwtAuthGuard, BlockGuard, RolesGuard)
+//   @Role('user')
+//   delete(@Param('id') id: string, @Req() req) {
+//     const user = {
+//       id: req.user.userId,
+//       role: req.user.role,
+//       isBlocked: req.user.isBlocked,
+//     } as User;
+
+//     return this.postsService.deletePost(id, user);
+//   }
 // }
-// }
 
 
+
+// src/posts/posts.controller.ts
 import {
   Controller,
-  Post,
+  Post as HttpPost,
   Get,
   Patch,
   Delete,
@@ -103,30 +129,23 @@ import { Role } from '../auth/decorators/role.decorator';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { User } from 'src/users/user.entity';
-
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { UploadService } from 'src/common/upload/upload.service';
 
 @Controller('posts')
 @UseGuards(JwtAuthGuard, BlockGuard)
 export class PostsController {
-  constructor(private readonly postsService: PostsService) {}
+  constructor(
+    private readonly postsService: PostsService,
+    private readonly uploadService: UploadService,
+  ) {}
 
-  // ✅ Create new post (with image support)
-  @Post()
+  @HttpPost()
   @UseGuards(JwtAuthGuard, BlockGuard, RolesGuard)
   @Role('user')
   @UseInterceptors(
     FileInterceptor('image', {
-      storage: diskStorage({
-        destination: './uploads',
-        filename: (req, file, cb) => {
-          const uniqueName =
-            file.fieldname + '-' + Date.now() + extname(file.originalname);
-          cb(null, uniqueName);
-        },
-      }),
+      storage: new UploadService().getStorage('posts'),
     }),
   )
   create(
@@ -135,20 +154,18 @@ export class PostsController {
     @Req() req,
   ) {
     const user = { id: req.user.userId } as User;
+    const image = file
+      ? this.uploadService.getRelativePath(file.filename, 'posts')
+      : null;
 
-    // ✅ Only store the relative path
-    const image = file ? `/uploads/${file.filename}` : null;
-
-    return this.postsService.createPost({ ...dto, image: image || undefined }, user);
+    return this.postsService.createPost({ ...dto, image }, user);
   }
 
-  // ✅ Get my posts
   @Get('me')
   getMyPosts(@Req() req) {
     return this.postsService.getMyPosts(req.user.userId);
   }
 
-  // ✅ Admin: Get posts by user ID
   @UseGuards(RolesGuard)
   @Role('admin')
   @Get('admin/user/:userId')
@@ -156,15 +173,10 @@ export class PostsController {
     return this.postsService.getPostsByUserId(userId);
   }
 
-  // ✅ Update Post
   @Patch(':id')
   @UseGuards(JwtAuthGuard, BlockGuard, RolesGuard)
   @Role('user')
-  update(
-    @Param('id') id: string,
-    @Body() dto: UpdatePostDto,
-    @Req() req,
-  ) {
+  update(@Param('id') id: string, @Body() dto: UpdatePostDto, @Req() req) {
     const user = {
       id: req.user.userId,
       role: req.user.role,
@@ -174,7 +186,6 @@ export class PostsController {
     return this.postsService.updatePost(id, dto, user);
   }
 
-  // ✅ Delete post
   @Delete(':id')
   @UseGuards(JwtAuthGuard, BlockGuard, RolesGuard)
   @Role('user')

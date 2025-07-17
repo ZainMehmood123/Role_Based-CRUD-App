@@ -5,9 +5,10 @@ import { PostsService } from './posts.service';
 import { PostsController } from './posts.controller';
 import { User } from '../users/user.entity';
 import { UsersModule } from '../users/users.module';
+import { UploadModule } from '../common/upload/upload.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Post, User]), UsersModule],
+  imports: [UploadModule, TypeOrmModule.forFeature([Post, User]), UsersModule],
   controllers: [PostsController],
   providers: [PostsService],
 })
